@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
   /*No publisher at the moment*/
 
   /*Create subscriber twist_sub to subcribe to geometry_msgs/Twist*/
-  ros::Subscriber sub_twist = nh.subscribe("cmd", 100, TwistCallback);
+  ros::Subscriber sub_twist = nh.subscribe("cmd_vel", 100, TwistCallback);
   ros::Rate loop_rate(ROS_MAIN_LOOP_RATE);
 
   /*Initialize BBBL*/
@@ -142,7 +142,11 @@ int main(int argc, char *argv[])
     if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD_F32))
     {
       /*Send timeout message and stop motor*/
-      //ROS_INFO("Twist command timeout");
+      if(llc.motor_ena)
+      {
+        /*Switch motor_ena to 0*/
+        ROS_INFO("Twist command timeout");
+      }
       llc.motor_ena = 0;
       llc.speed1_cmd_pps = 0;
       llc.speed2_cmd_pps = 0;
@@ -214,11 +218,13 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   speed_linear_cmd   = cmd_vel_twist->linear.x;
   speed_angular_cmd = cmd_vel_twist->angular.z;
 
+  /*Deadzone detection*/
   if((speed_linear_cmd < 0.07) && (speed_linear_cmd > -0.07))
   {
      = 0.0;
   }
 
+  /*Deadzone detection*/
   if((speed_angular_cmd < 0.1) && (speed_angular_cmd > -0.1))
   {
      = 0.0;
@@ -232,11 +238,13 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
   speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
   
+  /*Deadzone detection*/
   if(abs(speed_mot1_pps) < 100)
   {
     speed_mot1_pps = 0;
   }
 
+  /*Deadzone detection*/
   if(abs(speed_mot2_pps) < 100)
   {
     speed_mot2_pps = 0;
