@@ -1,4 +1,3 @@
-
 /**
  * @defgroup   JOY_CONTROL_LLC_NODE joy control llc node
  *
@@ -156,8 +155,10 @@ int main(int argc, char *argv[])
   pthread_t mot_ctrl_thread;
   pthread_create(&mot_ctrl_thread, NULL, tMotorController, (void*)NULL);
 
-  /*Start imu*/
-  rc_set_state(RUNNING); 
+  /*Set state to running and start motor*/
+  rc_set_state(RUNNING);
+  rc_enable_motors();
+
 
   while(ros::ok())
   {
@@ -236,8 +237,8 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   llc.tstamp_twist_cmd = ros::Time::now().toSec();
 
   /*Conver twist message into pps of each wheel*/
-  speed_mot1_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (2.0f * llc.speed_angular_cmd * MOTOR_PULSE_PER_METER / TRACK_WIDTH_M);
-  speed_mot2_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (2.0f * llc.speed_angular_cmd * MOTOR_PULSE_PER_METER / TRACK_WIDTH_M);
+  speed_mot1_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M);
+  speed_mot2_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M);
   llc.speed1_cmd_pps = (int32_t)speed_mot1_pps;
   llc.speed2_cmd_pps = (int32_t)speed_mot2_pps;
   if(abs(llc.speed1_cmd_pps) < MOTOR_SPEED_MIN_ABS)
