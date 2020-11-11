@@ -78,6 +78,7 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist);
 uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold);
 uint8_t SetMotorCmd(void);
 void StopBothMotor(void);
+static void BBBL_InitPeripheral(void);
 
 /*Threads*/
 void* tPublishStatus(void* ptr);
@@ -88,7 +89,7 @@ int main(int argc, char *argv[])
 {
 
   /*Init ROS*/
-  ros::init(argc, argv, "bbbl_imu");
+  ros::init(argc, argv, "small_robot_llc");
 
   /*Create and start the noede*/
   ros::NodeHandle nh;
@@ -98,53 +99,27 @@ int main(int argc, char *argv[])
 
   /*Create subscriber twist_sub to subcribe to geometry_msgs/Twist*/
   ros::Subscriber sub_twist = nh.subscribe("cmd", 100, TwistCallback);
-
   ros::Rate loop_rate(ROS_MAIN_LOOP_RATE);
 
-  /*Initialize cape lib*/
+  /*Initialize BBBL*/
   if(rc_initialize()){
     ROS_ERROR ("ERROR: failed to initialize cape.\n");
     return -1;
   }
 
+  /*Initializa BBBL peripheral*/
+  BBBL_InitPeripheral();
+
   /*Initialize motor controller*/
-  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
-  {
-    ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
-  }
-
-  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
-  {
-    ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
-  }
-
-  if(MOTC_SetSpeedController(&motc1, 0U, 0.02f, 0))
-  {
-    ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
-  }
-
-  if(MOTC_SetSpeedController(&motc2, 0U, 0.02f, 0))
-  {
-    ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
-  }
-
-  /*Init mutex*/
-  pthread_mutex_init(&llc.lock, NULL);
-
-  /*Setup IMU*/
-  rc_imu_config_t imu_config = rc_default_imu_config();
-  imu_config.dmp_sample_rate = SAMPLE_RATE_HZ;
-
-  /*Initilalize imu DMP*/
-  if(rc_initialize_imu_dmp(&data, imu_config)){
-    ROS_WARN("WARN: rc_initialize_imu_dmp() falied\n");
-    return -1;
-  }
-
+  InitMotorController();
+  
   /*Set CB function*/
   signal(SIGINT,  ros_compatible_shutdown_signal_handler);  
   signal(SIGTERM, ros_compatible_shutdown_signal_handler);  
-  rc_set_imu_interrupt_func(&IMU_InterruptCB);
+
+
+  /*Init mutex*/
+  pthread_mutex_init(&llc.lock, NULL);
 
   /*Set and start threads*/
   /*Set and start a publish thread to publish message*/
@@ -155,15 +130,14 @@ int main(int argc, char *argv[])
   pthread_t mot_ctrl_thread;
   pthread_create(&mot_ctrl_thread, NULL, tMotorController, (void*)NULL);
 
-  /*Set state to running and start motor*/
+  /*Set state to running and start*/
   rc_set_state(RUNNING);
-  rc_enable_motors();
-
 
   while(ros::ok())
   {
     /*Reveice*/
     ros::spinOnce();
+
     /*Process*/
     if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD_F32))
     {
@@ -173,16 +147,19 @@ int main(int argc, char *argv[])
       llc.speed1_cmd_pps = 0;
       llc.speed2_cmd_pps = 0;
     }
+
     /*Command*/
     if(SetMotorCmd())
     {
       ROS_ERROR ("ERROR: failed to set command of motor controller.\n");
       llc.motor_ena = 0;
     }
+
     /*Sleep*/
     loop_rate.sleep();
   }
 
+  /*Node exit procedure*/
   ROS_INFO("Node prepare to exit\n");
   llc.motor_ena = 0;
   //StopBothMotor();
@@ -228,19 +205,45 @@ void IMU_InterruptCB(void)
  */
 void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
 {
-  float speed_mot1_pps = 0.0f;
-  float speed_mot2_pps = 0.0f;
+  int32_t speed_mot1_pps = 0.0f;
+  int32_t speed_mot2_pps = 0.0f;
+  double speed_linear_cmd = 0.0;
+  double speed_angular_cmd = 0.0;
   /*Receive messages*/
   llc.motor_ena = 1;
-  llc.speed_linear_cmd   = cmd_vel_twist->linear.x;
-  llc.speed_angular_cmd = cmd_vel_twist->angular.z;
+  speed_linear_cmd   = cmd_vel_twist->linear.x;
+  speed_angular_cmd = cmd_vel_twist->angular.z;
+
+  if((speed_linear_cmd < 0.07) && (speed_linear_cmd > -0.07))
+  {
+     = 0.0;
+  }
+
+  if((speed_angular_cmd < 0.1) && (speed_angular_cmd > -0.1))
+  {
+     = 0.0;
+  } 
+
+  llc.speed_linear_cmd   = speed_linear_cmd;
+  llc.speed_angular_cmd = speed_angular_cmd;
   llc.tstamp_twist_cmd = ros::Time::now().toSec();
 
   /*Conver twist message into pps of each wheel*/
-  speed_mot1_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M);
-  speed_mot2_pps = (llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M);
-  llc.speed1_cmd_pps = (int32_t)speed_mot1_pps;
-  llc.speed2_cmd_pps = (int32_t)speed_mot2_pps;
+  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
+  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
+  
+  if(abs(speed_mot1_pps) < 100)
+  {
+    speed_mot1_pps = 0;
+  }
+
+  if(abs(speed_mot2_pps) < 100)
+  {
+    speed_mot2_pps = 0;
+  }
+
+  llc.speed1_cmd_pps = speed_mot1_pps;
+  llc.speed2_cmd_pps = speed_mot2_pps;
   if(abs(llc.speed1_cmd_pps) < MOTOR_SPEED_MIN_ABS)
   {
     llc.speed1_cmd_pps = 0;
@@ -432,5 +435,45 @@ void ros_compatible_shutdown_signal_handler(int signo)
     rc_set_state(EXITING);
     ROS_INFO("Received SIGTERM.");
     ros::shutdown();
+  }
+}
+
+static void BBBL_InitPeripheral(void)
+{
+  /*Setup IMU*/
+  rc_imu_config_t imu_config = rc_default_imu_config();
+  
+  imu_config.dmp_sample_rate = SAMPLE_RATE_HZ;
+  rc_set_imu_interrupt_func(&IMU_InterruptCB);
+
+  /*Initilalize imu DMP*/
+  if(rc_initialize_imu_dmp(&data, imu_config)){
+    ROS_WARN("WARN: rc_initialize_imu_dmp() falied\n");
+    return -1;
+  }
+
+  rc_enable_motors();
+}
+
+static void InitMotorController(void)
+{
+  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  {
+    ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
+  }
+
+  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  {
+    ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
+  }
+
+  if(MOTC_SetSpeedController(&motc1, 0U, 0.015f, 0))
+  {
+    ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
+  }
+
+  if(MOTC_SetSpeedController(&motc2, 0U, 0.015f, 0))
+  {
+    ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
   }
 }
