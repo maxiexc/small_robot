@@ -78,7 +78,8 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist);
 uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold);
 uint8_t SetMotorCmd(void);
 void StopBothMotor(void);
-static void BBBL_InitPeripheral(void);
+static int BBBL_InitPeripheral(void);
+static void InitMotorController(void);
 
 /*Threads*/
 void* tPublishStatus(void* ptr);
@@ -108,7 +109,10 @@ int main(int argc, char *argv[])
   }
 
   /*Initializa BBBL peripheral*/
-  BBBL_InitPeripheral();
+  if(BBBL_InitPeripheral())
+  {
+    return -1;
+  }
 
   /*Initialize motor controller*/
   InitMotorController();
@@ -221,13 +225,13 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   /*Deadzone detection*/
   if((speed_linear_cmd < 0.07) && (speed_linear_cmd > -0.07))
   {
-     = 0.0;
+    speed_linear_cmd = 0.0;
   }
 
   /*Deadzone detection*/
   if((speed_angular_cmd < 0.1) && (speed_angular_cmd > -0.1))
   {
-     = 0.0;
+    speed_angular_cmd = 0.0;
   } 
 
   llc.speed_linear_cmd   = speed_linear_cmd;
@@ -235,8 +239,8 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   llc.tstamp_twist_cmd = ros::Time::now().toSec();
 
   /*Conver twist message into pps of each wheel*/
-  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
-  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
+  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * 0.5f * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
+  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * 0.5f * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
   
   /*Deadzone detection*/
   if(abs(speed_mot1_pps) < 100)
@@ -365,6 +369,7 @@ void* tMotorController(void *arg)
   const uint32_t time_thd_start = (uint32_t)(rc_nanos_since_boot()/1000000ULL);
   uint32_t time_thd_now = time_thd_start;
   int32_t priv_motor_ena = 0U;
+  int32_t priv_motor_ena_last = 0U;
   uint16_t priv_motor_stop_count = 0U;
 
   /*Init thread*/
@@ -375,37 +380,63 @@ void* tMotorController(void *arg)
     //pthread_mutex_lock(&g_ctrl.lock);
     /*Critical section*/
     /*Update motor command*/
+    priv_motor_ena_last = priv_motor_ena;
     priv_motor_ena = llc.motor_ena;
+    printf("priv_motor_ena is %d\n", priv_motor_ena);
     //pthread_mutex_unlock(&g_ctrl.lock);
 
     if(1 == priv_motor_ena)
     {
+      if(!priv_motor_ena_last)
+      {
+        ROS_INFO("Start motor command detected");
+      }
       time_thd_now = (uint32_t)(rc_nanos_since_boot()/1000000ULL) - time_thd_start;
       printf("MOT1 cmd:%d\n", motc1.cmd.speed);
       printf("MOT2 cmd:%d\n", motc2.cmd.speed);
       MOTC_SetEncoder(&motc1, rc_get_encoder_pos(motc1.cfg.encoder_id), time_thd_now);
       MOTC_SetEncoder(&motc2, rc_get_encoder_pos(motc2.cfg.encoder_id), time_thd_now);
 
-      if(MOTC_Run(&motc1))
+      if(!motc1.cmd.speed)
       {
-        printf("Error occurred during MOTC_RunPDC\n");
+        //printf("Free spin mot 1\n");
+        rc_set_motor_free_spin(motc1.cfg.motor_id);
+      }
+      else
+      {
+        if(MOTC_Run(&motc1))
+        {
+          printf("Error occurred during MOTC_RunPDC\n");
+        }
+        //printf("MOT%d duty:%f\n",motc1.cfg.motor_id, motc1.cmd_out);
+        rc_set_motor(motc1.cfg.motor_id, motc1.cmd_out);      
       }
 
-      if(MOTC_Run(&motc2))
+      if(!motc2.cmd.speed)
       {
-        printf("Error occurred during MOTC_RunPDC\n");
+        //printf("Free spin mot 2\n");
+        rc_set_motor_free_spin(motc2.cfg.motor_id);
       }
-      printf("MOT%d duty:%f\n",motc1.cfg.motor_id, motc1.cmd_out);
-      printf("MOT%d duty:%f\n",motc2.cfg.motor_id, motc2.cmd_out);
-      rc_set_motor(motc1.cfg.motor_id, motc1.cmd_out);
-      rc_set_motor(motc2.cfg.motor_id, motc2.cmd_out);
+      else
+      {
+        if(MOTC_Run(&motc2))
+        {
+          printf("Error occurred during MOTC_RunPDC\n");
+        }
+        //printf("MOT%d duty:%f\n",motc2.cfg.motor_id, motc2.cmd_out);
+        rc_set_motor(motc2.cfg.motor_id, motc2.cmd_out);
+      }
       priv_motor_stop_count = 0;
     }
     else
     {
+      if(priv_motor_ena_last)
+      {
+        ROS_INFO("Stop motor command detected");
+      }
       /*Stop both motor*/
       priv_motor_stop_count += 1U;
-      if(priv_motor_stop_count >= 200U)
+      if(priv_motor_stop_count >= 100U)
       {
         rc_set_motor_free_spin(motc1.cfg.motor_id);
         rc_set_motor_free_spin(motc2.cfg.motor_id);
@@ -446,7 +477,7 @@ void ros_compatible_shutdown_signal_handler(int signo)
   }
 }
 
-static void BBBL_InitPeripheral(void)
+static int BBBL_InitPeripheral(void)
 {
   /*Setup IMU*/
   rc_imu_config_t imu_config = rc_default_imu_config();
@@ -461,26 +492,27 @@ static void BBBL_InitPeripheral(void)
   }
 
   rc_enable_motors();
+  return 0;
 }
 
 static void InitMotorController(void)
 {
-  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
   }
 
-  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, 2800, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
   }
 
-  if(MOTC_SetSpeedController(&motc1, 0U, 0.015f, 0))
+  if(MOTC_SetSpeedController(&motc1, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
   }
 
-  if(MOTC_SetSpeedController(&motc2, 0U, 0.015f, 0))
+  if(MOTC_SetSpeedController(&motc2, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
   }
