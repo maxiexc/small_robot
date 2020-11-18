@@ -4,11 +4,14 @@
  * @brief      This file implements joy control llc node.
  *
  * @author     Maxie
- * @date       2020.11.08
+ * @date       2020.11.18
  */
 
 /*Standard include*/
 #include <unistd.h>
+#include <thread>     /*C++ header*/
+#include <mutex>      /*C++ header*/
+#include <atomic>     /*C++ header*/
 
 /*Board specific include*/
 extern "C"
@@ -45,7 +48,8 @@ extern "C"
 /*Struct*/
 typedef struct
 {
-  uint32_t motor_ena;
+  std::atomic_bool motor_ena;
+  //uint32_t motor_ena;
   float speed_linear_cmd;
   float speed_angular_cmd;
   int32_t speed1_cmd_pps;
@@ -151,7 +155,7 @@ int main(int argc, char *argv[])
         /*Switch motor_ena to 0*/
         ROS_INFO("Twist command timeout");
       }
-      llc.motor_ena = 0;
+      llc.motor_ena = false;
       llc.speed1_cmd_pps = 0;
       llc.speed2_cmd_pps = 0;
     }
@@ -160,7 +164,7 @@ int main(int argc, char *argv[])
     if(SetMotorCmd())
     {
       ROS_ERROR ("ERROR: failed to set command of motor controller.\n");
-      llc.motor_ena = 0;
+      llc.motor_ena = false;
     }
 
     /*Sleep*/
@@ -169,7 +173,7 @@ int main(int argc, char *argv[])
 
   /*Node exit procedure*/
   ROS_INFO("Node prepare to exit\n");
-  llc.motor_ena = 0;
+  llc.motor_ena = false;
   //StopBothMotor();
   rc_set_state(EXITING);
   ros::shutdown();
@@ -218,7 +222,7 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   double speed_linear_cmd = 0.0;
   double speed_angular_cmd = 0.0;
   /*Receive messages*/
-  llc.motor_ena = 1;
+  llc.motor_ena = true;
   speed_linear_cmd   = cmd_vel_twist->linear.x;
   speed_angular_cmd = cmd_vel_twist->angular.z;
 
@@ -368,8 +372,8 @@ void* tMotorController(void *arg)
   /*Setup private variables*/
   const uint32_t time_thd_start = (uint32_t)(rc_nanos_since_boot()/1000000ULL);
   uint32_t time_thd_now = time_thd_start;
-  int32_t priv_motor_ena = 0U;
-  int32_t priv_motor_ena_last = 0U;
+  bool priv_motor_ena = false;
+  bool priv_motor_ena_last = false;
   uint16_t priv_motor_stop_count = 0U;
 
   /*Init thread*/
@@ -382,10 +386,11 @@ void* tMotorController(void *arg)
     /*Update motor command*/
     priv_motor_ena_last = priv_motor_ena;
     priv_motor_ena = llc.motor_ena;
-    printf("priv_motor_ena is %d\n", priv_motor_ena);
+    std::cout<<"priv_motor_ena is: "<<priv_motor_ena<<endl;
+    //printf("priv_motor_ena is %d\n", priv_motor_ena);
     //pthread_mutex_unlock(&g_ctrl.lock);
 
-    if(1 == priv_motor_ena)
+    if(priv_motor_ena)
     {
       if(!priv_motor_ena_last)
       {
