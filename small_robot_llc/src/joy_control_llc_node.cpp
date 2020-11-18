@@ -5,21 +5,18 @@
  *
  * @author     Maxie
  * @date       2020.11.18
+ * 
+ * @todo       Add parameter.
  */
 
 /*Standard include*/
-#include <unistd.h>
-#include <thread>     /*C++ header*/
-#include <mutex>      /*C++ header*/
-#include <atomic>     /*C++ header*/
+//#include <unistd.h>
 
 /*Board specific include*/
-extern "C"
-{
-#include "rc_usefulincludes.h"
-}
+
 extern "C"
 {  
+#include "rc_usefulincludes.h"
 #include "roboticscape.h"
 }
 
@@ -30,11 +27,11 @@ extern "C"
 
 /*Application include*/
 extern "C"
-{  
+{ 
 #include "motor_controller.h"
 #include "pd_controller.h"
+#include "motor_config.h" 
 }
-#include "motor_config.h"
 
 /*Define config values*/
 #define SAMPLE_RATE_HZ          50
@@ -44,18 +41,18 @@ extern "C"
 #define JCLLC_CMD_TMO_THOLD_F32 1.0f
 
 /*Application specific include*/
+//using namespace std;
 
 /*Struct*/
 typedef struct
 {
-  std::atomic_bool motor_ena;
-  //uint32_t motor_ena;
+  volatile bool motor_ena;  /*Motor enable flag*/
   float speed_linear_cmd;
   float speed_angular_cmd;
   int32_t speed1_cmd_pps;
   int32_t speed2_cmd_pps;
   float tstamp_twist_cmd;
-  pthread_mutex_t lock;
+  pthread_mutex_t lock_motor_ena;
 
 } LLC_HANDLE_T;
 
@@ -92,6 +89,12 @@ void* tMotorController(void* arg);
 /*main*/
 int main(int argc, char *argv[])
 {
+  /*Initialize structure*/
+  llc.motor_ena = false;
+  llc.lock_motor_ena = PTHREAD_MUTEX_INITIALIZER;
+  
+  /*Priveate variables*/
+  bool priv_motor_ena = false;
 
   /*Init ROS*/
   ros::init(argc, argv, "small_robot_llc");
@@ -127,7 +130,8 @@ int main(int argc, char *argv[])
 
 
   /*Init mutex*/
-  pthread_mutex_init(&llc.lock, NULL);
+  /*mutex init through macro*/
+  
 
   /*Set and start threads*/
   /*Set and start a publish thread to publish message*/
@@ -146,16 +150,21 @@ int main(int argc, char *argv[])
     /*Reveice*/
     ros::spinOnce();
 
+    pthread_mutex_lock(&(llc.lock_motor_ena));
+    /*Critical section*/
+    priv_motor_ena = llc.motor_ena;
+    pthread_mutex_unlock(&(llc.lock_motor_ena));
+
     /*Process*/
     if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD_F32))
     {
       /*Send timeout message and stop motor*/
-      if(llc.motor_ena)
+      if(priv_motor_ena)
       {
         /*Switch motor_ena to 0*/
-        ROS_INFO("Twist command timeout");
+        printf("Twist command timeout\n");
       }
-      llc.motor_ena = false;
+      priv_motor_ena = false;
       llc.speed1_cmd_pps = 0;
       llc.speed2_cmd_pps = 0;
     }
@@ -164,8 +173,14 @@ int main(int argc, char *argv[])
     if(SetMotorCmd())
     {
       ROS_ERROR ("ERROR: failed to set command of motor controller.\n");
-      llc.motor_ena = false;
+      priv_motor_ena = false;
     }
+
+    /*Update*/
+    pthread_mutex_lock(&(llc.lock_motor_ena));
+    /*Critical section*/
+    llc.motor_ena = priv_motor_ena;
+    pthread_mutex_unlock(&(llc.lock_motor_ena));
 
     /*Sleep*/
     loop_rate.sleep();
@@ -173,7 +188,10 @@ int main(int argc, char *argv[])
 
   /*Node exit procedure*/
   ROS_INFO("Node prepare to exit\n");
-  llc.motor_ena = false;
+  priv_motor_ena = false;
+  pthread_mutex_lock(&(llc.lock_motor_ena));
+  llc.motor_ena = priv_motor_ena;
+  pthread_mutex_unlock(&(llc.lock_motor_ena));
   //StopBothMotor();
   rc_set_state(EXITING);
   ros::shutdown();
@@ -187,8 +205,9 @@ int main(int argc, char *argv[])
 }
 
 /**
- * @brief   This function update imu data to sensor_msgs::Imu
- * @details This function update [x, y, z, w] of quat and set imu_is_set to true
+ * @brief      This function update imu data to sensor_msgs::Imu
+ * @details    This function update [x, y, z, w] of quat and set imu_is_set to true
+ * @todo       Replace mutex with other none blocking mechanism
  */
 void IMU_InterruptCB(void)
 {
@@ -199,14 +218,14 @@ void IMU_InterruptCB(void)
   }
 
   /*Copy IMU data to ROS message*/
-  pthread_mutex_lock(&imu_mutex);
-  imu_msg.orientation.x = data.dmp_quat[QUAT_X];
-  imu_msg.orientation.y = data.dmp_quat[QUAT_Y];
-  imu_msg.orientation.z = data.dmp_quat[QUAT_Z];
-  imu_msg.orientation.w = data.dmp_quat[QUAT_W];
-  imu_msg.header.frame_id = frame_id;
-  imu_is_set = true;
-  pthread_mutex_unlock(&imu_mutex);
+  //pthread_mutex_lock(&imu_mutex);
+  //imu_msg.orientation.x = data.dmp_quat[QUAT_X];
+  //imu_msg.orientation.y = data.dmp_quat[QUAT_Y];
+  //imu_msg.orientation.z = data.dmp_quat[QUAT_Z];
+  //imu_msg.orientation.w = data.dmp_quat[QUAT_W];
+  //imu_msg.header.frame_id = frame_id;
+  //imu_is_set = true;
+  //pthread_mutex_unlock(&imu_mutex);
 }
 
 /**
@@ -222,7 +241,11 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   double speed_linear_cmd = 0.0;
   double speed_angular_cmd = 0.0;
   /*Receive messages*/
+  pthread_mutex_lock(&(llc.lock_motor_ena));
+  /*Critical section*/
   llc.motor_ena = true;
+  pthread_mutex_unlock(&(llc.lock_motor_ena));
+  printf("twist received\n");
   speed_linear_cmd   = cmd_vel_twist->linear.x;
   speed_angular_cmd = cmd_vel_twist->angular.z;
 
@@ -385,8 +408,13 @@ void* tMotorController(void *arg)
     /*Critical section*/
     /*Update motor command*/
     priv_motor_ena_last = priv_motor_ena;
+
+    pthread_mutex_lock(&(llc.lock_motor_ena));
+    /*Critical section*/
     priv_motor_ena = llc.motor_ena;
-    std::cout<<"priv_motor_ena is: "<<priv_motor_ena<<endl;
+    pthread_mutex_unlock(&(llc.lock_motor_ena));
+
+    //std::cout<<"priv_motor_ena is: "<<priv_motor_ena<<std::endl;
     //printf("priv_motor_ena is %d\n", priv_motor_ena);
     //pthread_mutex_unlock(&g_ctrl.lock);
 
@@ -397,8 +425,8 @@ void* tMotorController(void *arg)
         ROS_INFO("Start motor command detected");
       }
       time_thd_now = (uint32_t)(rc_nanos_since_boot()/1000000ULL) - time_thd_start;
-      printf("MOT1 cmd:%d\n", motc1.cmd.speed);
-      printf("MOT2 cmd:%d\n", motc2.cmd.speed);
+      //printf("MOT1 cmd:%d\n", motc1.cmd.speed);
+      //printf("MOT2 cmd:%d\n", motc2.cmd.speed);
       MOTC_SetEncoder(&motc1, rc_get_encoder_pos(motc1.cfg.encoder_id), time_thd_now);
       MOTC_SetEncoder(&motc2, rc_get_encoder_pos(motc2.cfg.encoder_id), time_thd_now);
 

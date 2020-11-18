@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(small_robot_llc)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -150,7 +150,7 @@ add_executable(joy_control_llc_node src/joy_control_llc_node.cpp src/motor_contr
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 #add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(joy_control_llc_node joy_control_llc_cpp)
+add_dependencies(joy_control_llc_node joy_control_llc_node_cpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
