@@ -56,16 +56,23 @@ typedef struct
 
 } LLC_HANDLE_T;
 
+typedef struct
+{
+  volatile bool is_set;
+  volatile uint32_t counter;
+} LLC_VAR_HANDLE_T;
+
+
 /*Global variables*/
 LLC_HANDLE_T llc = {0};
 
 /*Mutexes*/
-pthread_mutex_t imu_mutex = PTHREAD_MUTEX_INITIALIZER; /**< Mutex for imu_msg*/
+//pthread_mutex_t imu_mutex = PTHREAD_MUTEX_INITIALIZER; /**< Mutex for imu_msg*/
 
 /*Local variables*/
 sensor_msgs::Imu imu_msg;
-rc_imu_data_t data = {0}; 
-volatile bool imu_is_set = false;
+rc_imu_data_t data = {0};
+LLC_VAR_HANDLE_T imu_var = {0};
 std::string frame_id = "imu_frame";   /**< Frame ID of IMU*/
 MOTC_HANDLE_T motc1;                  /**< Motor controller handle of motor 1*/
 MOTC_HANDLE_T motc2;                  /**< Motor controller handle of motor 2*/
@@ -80,7 +87,7 @@ uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold);
 uint8_t SetMotorCmd(void);
 void StopBothMotor(void);
 static int BBBL_InitPeripheral(void);
-static void InitMotorController(void);
+static int InitMotorController(void);
 
 /*Threads*/
 void* tPublishStatus(void* ptr);
@@ -118,11 +125,16 @@ int main(int argc, char *argv[])
   /*Initializa BBBL peripheral*/
   if(BBBL_InitPeripheral())
   {
+    ROS_ERROR("ERROR: BBBL peripheral initialization failed");
     return -1;
   }
 
   /*Initialize motor controller*/
-  InitMotorController();
+  if(InitMotorController())
+  {
+    ROS_ERROR("ERROR: Motor controller initialization failed");
+    return -1;
+  }
   
   /*Set CB function*/
   signal(SIGINT,  ros_compatible_shutdown_signal_handler);  
@@ -135,8 +147,8 @@ int main(int argc, char *argv[])
 
   /*Set and start threads*/
   /*Set and start a publish thread to publish message*/
-  //pthread_t  printf_thread;
-  //pthread_create(&printf_thread, NULL, tPublishStatus, (void*) NULL);
+  pthread_t  printf_thread;
+  pthread_create(&printf_thread, NULL, tPublishStatus, (void*) NULL);
   
   /*Set and start a command thread to command motor*/
   pthread_t mot_ctrl_thread;
@@ -162,7 +174,7 @@ int main(int argc, char *argv[])
       if(priv_motor_ena)
       {
         /*Switch motor_ena to 0*/
-        printf("Twist command timeout\n");
+        ROS_INFO("Twist command timeout\n");
       }
       priv_motor_ena = false;
       llc.speed1_cmd_pps = 0;
@@ -205,27 +217,30 @@ int main(int argc, char *argv[])
 }
 
 /**
- * @brief      This function update imu data to sensor_msgs::Imu
- * @details    This function update [x, y, z, w] of quat and set imu_is_set to true
- * @todo       Replace mutex with other none blocking mechanism
+ * @brief      This function update imu data to sensor_msgs::Imu.
+ *             
+ * @details    This function update [x, y, z, w] of quat and set imu_var.is_set to true.
+ *             This function will also update a counter after it updated imu data.
+ *             
+ * @note       This funciton access variable used by other thread directly.
+ * 
  */
 void IMU_InterruptCB(void)
 {
   /*Check for exit condition*/
   if(rc_get_state()==EXITING){
-    ROS_INFO("IMU callback exit detected\n");
+    //ROS_INFO("IMU callback exit detected\n");
     return;
   }
 
   /*Copy IMU data to ROS message*/
-  //pthread_mutex_lock(&imu_mutex);
-  //imu_msg.orientation.x = data.dmp_quat[QUAT_X];
-  //imu_msg.orientation.y = data.dmp_quat[QUAT_Y];
-  //imu_msg.orientation.z = data.dmp_quat[QUAT_Z];
-  //imu_msg.orientation.w = data.dmp_quat[QUAT_W];
-  //imu_msg.header.frame_id = frame_id;
-  //imu_is_set = true;
-  //pthread_mutex_unlock(&imu_mutex);
+  imu_msg.orientation.x = data.dmp_quat[QUAT_X];
+  imu_msg.orientation.y = data.dmp_quat[QUAT_Y];
+  imu_msg.orientation.z = data.dmp_quat[QUAT_Z];
+  imu_msg.orientation.w = data.dmp_quat[QUAT_W];
+  imu_msg.header.frame_id = frame_id;
+  imu_var.is_set = true;
+  imu_var.counter++;
 }
 
 /**
@@ -308,6 +323,8 @@ uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold)
   float time_now = ros::Time::now().toSec();      
   float t_pass = time_now - tstamp;
 
+  printf("Time pass: %6.6f. Threshold:  %6.6f\n",t_pass, tmo_threshold);
+
   if(t_pass > tmo_threshold)
   {
     /*Time out is true*/
@@ -347,18 +364,14 @@ void StopBothMotor(void)
   rc_usleep(1000000);
   rc_set_motor_free_spin(motc1.cfg.motor_id);
   rc_set_motor_free_spin(motc2.cfg.motor_id);
-  //pthread_mutex_lock(&g_ctrl.lock);
-  ///*Critical section*/
-  //g_ctrl.motor_ena = 0;
-  //pthread_mutex_unlock(&g_ctrl.lock);
-  //rc_usleep(500000);
 }
 
 /*Not used at the moment*/
 void* tPublishStatus(void* ptr)
 {
   rc_state_t last_rc_state, new_rc_state; // keep track of last state
-  sensor_msgs::Imu local_imu_msg = imu_msg;
+  sensor_msgs::Imu local_imu_msg;
+  uint32_t priv_counter = 0U;
 
 
   new_rc_state = rc_get_state();
@@ -368,18 +381,25 @@ void* tPublishStatus(void* ptr)
     last_rc_state = new_rc_state; 
     new_rc_state = rc_get_state();
 
-    pthread_mutex_lock(&imu_mutex);
-    
-    if(imu_is_set == true)
-    {
+    /*Publish imu data*/
+    if(imu_var.is_set == true)
+    { 
+      priv_counter = imu_var.counter;
+      local_imu_msg= imu_msg;
+
+      if(priv_counter != imu_var.counter)
+      {
+        /*message has been modified during copy, copy again*/
+        local_imu_msg= imu_msg;
+      }
+
       imu_pub.publish(local_imu_msg);
-      imu_is_set = false;
+      imu_var.is_set = false;
     }
     else{
       /*No IMU update detected*/
       ROS_INFO("IMU update timeout");
     }
-    pthread_mutex_unlock(&imu_mutex);
 
     rc_usleep(1000000 / SAMPLE_RATE_HZ);
   }
@@ -510,6 +530,13 @@ void ros_compatible_shutdown_signal_handler(int signo)
   }
 }
 
+/**
+ * @brief      This function help initilize BBBL related peripheral
+ *
+ * @return     Status of initialization.
+ *             0: Initialize complete
+ *            -1: Error occurred  
+ */
 static int BBBL_InitPeripheral(void)
 {
   /*Setup IMU*/
@@ -528,25 +555,38 @@ static int BBBL_InitPeripheral(void)
   return 0;
 }
 
-static void InitMotorController(void)
+/**
+ * @brief      This funciton help initialize motor controller and speed controller
+ *
+ * @return     Status of initialization.
+ *             0: Initialize complete
+ *            -1: Error occurred  
+ */
+static int InitMotorController(void)
 {
   if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
+    return -1;
   }
 
   if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
+    return -1;
   }
 
   if(MOTC_SetSpeedController(&motc1, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
+    return -1;
   }
 
   if(MOTC_SetSpeedController(&motc2, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
+    return -1;
   }
+
+  return 0;
 }
