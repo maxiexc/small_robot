@@ -53,7 +53,6 @@ typedef struct
   int32_t speed2_cmd_pps;
   double tstamp_twist_cmd;
   pthread_mutex_t lock_motor_ena;
-
 } LLC_HANDLE_T;
 
 typedef struct
@@ -64,9 +63,20 @@ typedef struct
 } LLC_VAR_HANDLE_T;
 
 
+typedef struct
+{
+  int     motor_pulse_per_meter;
+  int     motor_speed_max_abs;
+  int     motor_speed_min_abs;
+  double  track_width_meter;
+  double  motor_dduty_max001;
+  double  motor_speed_controller_kp;
+  double  motor_speed_controller_kd;
+} LLC_PARAMETER_T;
+
 /*Global variables*/
 LLC_HANDLE_T llc = {0};
-
+LLC_PARAMETER_T param = {0};
 /*Mutexes*/
 //pthread_mutex_t imu_mutex = PTHREAD_MUTEX_INITIALIZER; /**< Mutex for imu_msg*/
 
@@ -80,16 +90,20 @@ MOTC_HANDLE_T motc2;                  /**< Motor controller handle of motor 2*/
 /*Declear publisher*/
 ros::Publisher imu_pub;
 
-/*Functions declaration*/
+/*Function declaration*/
+/*Static function*/
+static int BBBL_InitPeripheral(void);
+static int InitMotorController(void);
+static void PrintParam(void);
+static void SetParam(void);
+
+/*Non static function*/
 void IMU_InterruptCB(void);
 void ros_compatible_shutdown_signal_handler(int signo);
 void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist);
 uint8_t CheckMsgTMO(const double &tstamp, const double tmo_threshold);
 uint8_t SetMotorCmd(void);
 void StopBothMotor(void);
-static int BBBL_InitPeripheral(void);
-static int InitMotorController(void);
-
 /*Threads*/
 void* tPublishStatus(void* ptr);
 void* tMotorController(void* arg);
@@ -110,6 +124,9 @@ int main(int argc, char *argv[])
   /*Create and start the noede*/
   ros::NodeHandle nh;
 
+  /*Process parameter*/
+  SetParam();
+  PrintParam();
   /*Create publisher*/
   /*No publisher at the moment*/
 
@@ -282,8 +299,8 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   llc.tstamp_twist_cmd = ros::Time::now().toSec();
 
   /*Conver twist message into pps of each wheel*/
-  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) + (llc.speed_angular_cmd * 0.5f * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
-  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)MOTOR_PULSE_PER_METER) - (llc.speed_angular_cmd * 0.5f * MOTOR_PULSE_PER_METER * TRACK_WIDTH_M));
+  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) + (llc.speed_angular_cmd * 0.5f * (float)(param.motor_pulse_per_meter) * (param.track_width_meter)));
+  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) - (llc.speed_angular_cmd * 0.5f * (float)(param.motor_pulse_per_meter) * (param.track_width_meter)));
   
   /*Deadzone detection*/
   if(abs(speed_mot1_pps) < 100)
@@ -299,12 +316,12 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
 
   llc.speed1_cmd_pps = speed_mot1_pps;
   llc.speed2_cmd_pps = speed_mot2_pps;
-  if(abs(llc.speed1_cmd_pps) < MOTOR_SPEED_MIN_ABS)
+  if(abs(llc.speed1_cmd_pps) < param.motor_speed_min_abs)
   {
     llc.speed1_cmd_pps = 0;
   }
 
-  if(abs(llc.speed2_cmd_pps) < MOTOR_SPEED_MIN_ABS)
+  if(abs(llc.speed2_cmd_pps) < param.motor_speed_min_abs)
   {
     llc.speed2_cmd_pps = 0;
   }
@@ -570,29 +587,53 @@ static int BBBL_InitPeripheral(void)
  */
 static int InitMotorController(void)
 {
-  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
     return -1;
   }
 
-  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, MOTOR_DDUTY_MAX001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
     return -1;
   }
 
-  if(MOTC_SetSpeedController(&motc1, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
+  if(MOTC_SetSpeedController(&motc1, 0U, param.motor_speed_controller_kp, param.motor_speed_controller_kd))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
     return -1;
   }
 
-  if(MOTC_SetSpeedController(&motc2, 0U, MOTOR_SPEED_CONTROLLER_KP, MOTOR_SPEED_CONTROLLER_KD))
+  if(MOTC_SetSpeedController(&motc2, 0U, param.motor_speed_controller_kp, param.motor_speed_controller_kd))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
     return -1;
   }
 
   return 0;
+}
+
+
+static void PrintParam(void)
+{
+  ROS_INFO("motor_pulse_per_meter is: %d", param.motor_pulse_per_meter);
+  ROS_INFO("motor_speed_max_abs is: %d", param.motor_speed_max_abs);
+  ROS_INFO("motor_speed_min_abs is: %d", param.motor_speed_min_abs);
+  ROS_INFO("track_width_meter is: %lf", param.track_width_meter);
+  ROS_INFO("motor_dduty_max001 is: %lf", param.motor_dduty_max001);
+  ROS_INFO("motor_speed_controller_kp is: %lf", param.motor_speed_controller_kp);
+  ROS_INFO("motor_speed_controller_kd is: %lf", param.motor_speed_controller_kd);
+}
+
+static void SetParam(void)
+{
+  ros::NodeHandle priv_nh("~");
+  priv_nh.param<int>("motor_pulse_per_meter", param.motor_pulse_per_meter, MOTOR_PULSE_PER_METER);
+  priv_nh.param<int>("motor_speed_max_abs", param.motor_speed_max_abs, MOTOR_SPEED_MAX_ABS);
+  priv_nh.param<int>("motor_speed_min_abs", param.motor_speed_min_abs, MOTOR_SPEED_MIN_ABS);
+  priv_nh.param<double>("track_width_meter", param.track_width_meter, TRACK_WIDTH_M);
+  priv_nh.param<double>("motor_dduty_max001", param.motor_dduty_max001, MOTOR_DDUTY_MAX001);
+  priv_nh.param<double>("motor_speed_controller_kp", param.motor_speed_controller_kp, MOTOR_SPEED_CONTROLLER_KP);
+  priv_nh.param<double>("motor_speed_controller_kd", param.motor_speed_controller_kd, MOTOR_SPEED_CONTROLLER_KD);
 }
