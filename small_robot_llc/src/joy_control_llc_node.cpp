@@ -299,8 +299,8 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   llc.tstamp_twist_cmd = ros::Time::now().toSec();
 
   /*Conver twist message into pps of each wheel*/
-  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) + (llc.speed_angular_cmd * 0.5f * (float)(param.motor_pulse_per_meter) * (param.track_width_meter)));
-  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) - (llc.speed_angular_cmd * 0.5f * (float)(param.motor_pulse_per_meter) * (param.track_width_meter)));
+  speed_mot1_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) + (float)((double)llc.speed_angular_cmd * 0.5 * (param.motor_pulse_per_meter) * (param.track_width_meter)));
+  speed_mot2_pps = (int32_t)((llc.speed_linear_cmd * (float)(param.motor_pulse_per_meter)) - (float)((double)llc.speed_angular_cmd * 0.5 * (param.motor_pulse_per_meter) * (param.track_width_meter)));
   
   /*Deadzone detection*/
   if(abs(speed_mot1_pps) < 100)
@@ -587,25 +587,25 @@ static int BBBL_InitPeripheral(void)
  */
 static int InitMotorController(void)
 {
-  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc1, MOTC_MODE_ENUM_SPEED, 1, 1, 1, MOTOR_PULSE_PER_REV, (float)param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 1\n");
     return -1;
   }
 
-  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
+  if(MOTC_Init(&motc2, MOTC_MODE_ENUM_SPEED, 0, 2, 2, MOTOR_PULSE_PER_REV, (float)param.motor_dduty_max001, MOTOR_DUTY_MAX_ABS, MOTOR_DUTY_MIN_ABS))
   {
     ROS_ERROR("Error occurred during MOTC_Init on motor 2\n");
     return -1;
   }
 
-  if(MOTC_SetSpeedController(&motc1, 0U, param.motor_speed_controller_kp, param.motor_speed_controller_kd))
+  if(MOTC_SetSpeedController(&motc1, 0U, (float)param.motor_speed_controller_kp, (float)param.motor_speed_controller_kd))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
     return -1;
   }
 
-  if(MOTC_SetSpeedController(&motc2, 0U, param.motor_speed_controller_kp, param.motor_speed_controller_kd))
+  if(MOTC_SetSpeedController(&motc2, 0U, (float)param.motor_speed_controller_kp, (float)param.motor_speed_controller_kd))
   {
     ROS_ERROR("Error occurred during MOTC_SetSpeedPDC\n");
     return -1;
