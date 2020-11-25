@@ -4,7 +4,7 @@
  * @brief      This file implements joy control llc node.
  *
  * @author     Maxie
- * @date       2020.11.18
+ * @date       2020.11.25
  * 
  * @todo       Add parameter.
  */
@@ -38,7 +38,7 @@ extern "C"
 #define ROS_MSG_PUBLISH_RATE    25
 #define ROS_MAIN_LOOP_RATE      50
 #define MOTOR_CONTROLLER_RATE   100
-#define JCLLC_CMD_TMO_THOLD_F32 1.0f
+#define JCLLC_CMD_TMO_THOLD     1.0
 
 /*Application specific include*/
 //using namespace std;
@@ -51,15 +51,16 @@ typedef struct
   float speed_angular_cmd;
   int32_t speed1_cmd_pps;
   int32_t speed2_cmd_pps;
-  float tstamp_twist_cmd;
+  double tstamp_twist_cmd;
   pthread_mutex_t lock_motor_ena;
 
 } LLC_HANDLE_T;
 
 typedef struct
 {
-  volatile bool is_set;
   volatile uint32_t counter;
+  volatile bool is_timeout;
+  volatile bool is_set;
 } LLC_VAR_HANDLE_T;
 
 
@@ -83,7 +84,7 @@ ros::Publisher imu_pub;
 void IMU_InterruptCB(void);
 void ros_compatible_shutdown_signal_handler(int signo);
 void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist);
-uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold);
+uint8_t CheckMsgTMO(const double &tstamp, const double tmo_threshold);
 uint8_t SetMotorCmd(void);
 void StopBothMotor(void);
 static int BBBL_InitPeripheral(void);
@@ -168,13 +169,13 @@ int main(int argc, char *argv[])
     pthread_mutex_unlock(&(llc.lock_motor_ena));
 
     /*Process*/
-    if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD_F32))
+    if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD))
     {
       /*Send timeout message and stop motor*/
       if(priv_motor_ena)
       {
         /*Switch motor_ena to 0*/
-        ROS_INFO("Twist command timeout\n");
+        ROS_WARN("Twist command timeout");
       }
       priv_motor_ena = false;
       llc.speed1_cmd_pps = 0;
@@ -260,7 +261,7 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
   /*Critical section*/
   llc.motor_ena = true;
   pthread_mutex_unlock(&(llc.lock_motor_ena));
-  printf("twist received\n");
+  //printf("twist received\n");
   speed_linear_cmd   = cmd_vel_twist->linear.x;
   speed_angular_cmd = cmd_vel_twist->angular.z;
 
@@ -313,21 +314,21 @@ void TwistCallback(const geometry_msgs::Twist::ConstPtr& cmd_vel_twist)
  * @brief      This funciton check if timeout condition is true
  *
  * @param[in]  tstamp            The time stamp
- * @param[in]  tmo_threshold     The time out  threshold
+ * @param[in]  tmo_threshold     The timeout  threshold
  *
  * @return     0:     Timeout condition is false
  *             other: Timeout condition is true
  */
-uint8_t CheckMsgTMO(const float tstamp, const float tmo_threshold)
+uint8_t CheckMsgTMO(const double &tstamp, const double tmo_threshold)
 {
-  float time_now = ros::Time::now().toSec();      
-  float t_pass = time_now - tstamp;
+  double time_now = ros::Time::now().toSec();      
+  double t_pass = time_now - tstamp;
 
-  printf("Time pass: %6.6f. Threshold:  %6.6f\n",t_pass, tmo_threshold);
+  //printf("Time pass: %6.6lf. Threshold:  %6.6lf\n",t_pass, tmo_threshold);
 
   if(t_pass > tmo_threshold)
   {
-    /*Time out is true*/
+    /*timeout is true*/
     return 1U;
   }
 
@@ -382,7 +383,7 @@ void* tPublishStatus(void* ptr)
     new_rc_state = rc_get_state();
 
     /*Publish imu data*/
-    if(imu_var.is_set == true)
+    if(true == imu_var.is_set)
     { 
       priv_counter = imu_var.counter;
       local_imu_msg= imu_msg;
@@ -395,10 +396,15 @@ void* tPublishStatus(void* ptr)
 
       imu_pub.publish(local_imu_msg);
       imu_var.is_set = false;
+      imu_var.is_timeout = false;
     }
     else{
       /*No IMU update detected*/
-      ROS_INFO("IMU update timeout");
+      if(false == imu_var.is_timeout)
+      {
+        ROS_WARN("IMU update timeout");
+        imu_var.is_timeout = true;
+      }
     }
 
     rc_usleep(1000000 / SAMPLE_RATE_HZ);
