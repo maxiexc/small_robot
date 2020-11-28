@@ -24,6 +24,8 @@ extern "C"
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
 #include "geometry_msgs/Twist.h"
+#include <tf/transform_broadcaster.h>   //Add on 2020.11.28
+#include <nav_msgs/Odometry.h>          //Add on 2020.11.28
 
 /*Application include*/
 extern "C"
@@ -32,6 +34,7 @@ extern "C"
 #include "pd_controller.h"
 #include "motor_config.h" 
 }
+#include "odometry.h"                   //Add on 2020.11.28
 
 /*Define config values*/
 #define SAMPLE_RATE_HZ          50
@@ -84,11 +87,12 @@ LLC_PARAMETER_T param = {0};
 sensor_msgs::Imu imu_msg;
 rc_imu_data_t data = {0};
 LLC_VAR_HANDLE_T imu_var = {0};
-std::string frame_id = "imu_frame";   /**< Frame ID of IMU*/
+std::string frame_id = "imu_base";    /**< Frame ID of IMU*/
 MOTC_HANDLE_T motc1;                  /**< Motor controller handle of motor 1*/
 MOTC_HANDLE_T motc2;                  /**< Motor controller handle of motor 2*/
 /*Declear publisher*/
 ros::Publisher imu_pub;
+ros::Publisher odom_pub;
 
 /*Function declaration*/
 /*Static function*/
@@ -128,7 +132,9 @@ int main(int argc, char *argv[])
   SetParam();
   PrintParam();
   /*Create publisher*/
-  /*No publisher at the moment*/
+  /*Create publisher imu to publish sensor_msgs/imu */
+  imu_pub = nh.advertise<sensor_msgs::Imu>("imu", 1000);
+  odom_pub = nh.advertise<nav_msgs::Odometry>("odom", 50);
 
   /*Create subscriber twist_sub to subcribe to geometry_msgs/Twist*/
   ros::Subscriber sub_twist = nh.subscribe("cmd_vel", 100, TwistCallback);
@@ -384,22 +390,36 @@ void StopBothMotor(void)
   rc_set_motor_free_spin(motc2.cfg.motor_id);
 }
 
-/*Not used at the moment*/
-void* tPublishStatus(void* ptr)
+/**
+ * @brief      This is a thread that publish status related message
+ * 
+ * @note       This thread runs at 50 Hz * 
+ *
+ * @param      arg  Argument
+ *
+ * @return     { description_of_the_return_value }
+ */
+void* tPublishStatus(void* arg)
 {
-  rc_state_t last_rc_state, new_rc_state; // keep track of last state
-  sensor_msgs::Imu local_imu_msg;
+  rc_state_t last_rc_state, new_rc_state; //keep track of last state
+  sensor_msgs::Imu local_imu_msg;         //imu message
+  nav_msgs::Odometry odom;                //Odometry message
+  ros::Time time_now = ros::Time::now(); 
   uint32_t priv_counter = 0U;
+  
+  Odometry odometry(TRACK_WIDTH_M, MOTOR_PULSE_PER_METER);
+  odometry.init(time_now);
 
 
   new_rc_state = rc_get_state();
-  
+
   while(rc_get_state()!=EXITING)
   {
     last_rc_state = new_rc_state; 
     new_rc_state = rc_get_state();
+    time_now = ros::Time::now();
 
-    /*Publish imu data*/
+    //Publish imu data
     if(true == imu_var.is_set)
     { 
       priv_counter = imu_var.counter;
@@ -424,6 +444,26 @@ void* tPublishStatus(void* ptr)
       }
     }
 
+    //Set and publish tf message
+
+
+    //Set and publish odom message
+    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(odometry.GetHeading());
+    odom.header.stamp = time_now;
+    odom.header.frame_id = "odom";
+    odom.pose.pose.position.x = odometry.GetX();
+    odom.pose.pose.position.y = odometry.GetY();
+    odom.pose.pose.position.z = 0.0;
+    odom.pose.pose.orientation = odom_quat;
+
+    //set the velocity
+    odom.child_frame_id = "base_link";
+    //odom.twist.twist.linear.x = vx;
+    //odom.twist.twist.linear.y = vy;
+    //odom.twist.twist.angular.z = vth;
+    odom_pub.publish(odom);
+
+    //Sleep
     rc_usleep(1000000 / SAMPLE_RATE_HZ);
   }
   

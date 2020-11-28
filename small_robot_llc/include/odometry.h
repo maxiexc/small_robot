@@ -6,18 +6,18 @@ typedef struct
   double x;
   double y;
   double heading;
-} ODOM_POSE_T;
+} OdomPoseT;
 
 namespace small_robot_llc
 {
   class Odometry
   {
   public:
-    /*Constructor*/
+    //Constructor
     Odometry();
 
     void Init();
-    void Update();
+    bool Update();
     
     void SetX();
     void SeyY();
@@ -29,19 +29,22 @@ namespace small_robot_llc
 
   private:
     //Parameters
-    double track_width;
+    double track_width_;
+    double enc_count_per_meter_;
 
-    // Position
-    ODOM_POSE_T pose_now;
-    ODOM_POSE_T pose_last;
-    
-    // Velocity
-    double linear;
-    double angular;
+    //Position
+    OdomPoseT pose_now_;
+    OdomPoseT pose_last_;
 
-    // Time
-    ros::time time_now;
-    ros::time time_last;
+    double enc_l_last;
+    double enc_r_last;
+    //Velocity
+    double linear_;
+    double angular_;
+
+    //Time
+    ros::time time_now_;
+    ros::time time_last_;
   }
 }
 #endif
