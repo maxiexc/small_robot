@@ -448,6 +448,7 @@ void* tPublishStatus(void* arg)
 
 
     //Set and publish odom message
+    odometry.Update((double)(rc_get_encoder_pos(motc1.cfg.encoder_id)) * (-1.0), (double)rc_get_encoder_pos(motc2.cfg.encoder_id), time_now);
     geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(odometry.GetHeading());
     odom.header.stamp = time_now;
     odom.header.frame_id = "odom";

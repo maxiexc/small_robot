@@ -7,6 +7,8 @@ namespace small_robot_llc
   {
     track_width_ = track_width;
     enc_count_per_meter_ = enc_count_per_meter;
+    enc_l_last_ = 0.0;
+    enc_r_last_ = 0.0;
   }
 
   void Odometry::Init(const ROS::Time &time)
@@ -27,10 +29,10 @@ namespace small_robot_llc
     }
     
     //update movement
-    mov_l = (enc_l - enc_l_last) / enc_count_per_meter_;
-    mov_r = (enc_r - enc_r_last) / enc_count_per_meter_;
-    enc_l_last = enc_l;
-    enc_r_last = enc_r;
+    mov_l = (enc_l - enc_l_last_) / enc_count_per_meter_;
+    mov_r = (enc_r - enc_r_last_) / enc_count_per_meter_;
+    enc_l_last_ = enc_l;
+    enc_r_last_ = enc_r;
 
     // Update time
     time_last_ = time_now_;
