@@ -5,13 +5,17 @@ This is a ROS package contain low level control algrithem of small robot.
 This package is designed for Beaglebone blue
 
 ### Subsrcibtion topics
-cmd_vel: geometry/Twist
+cmd_vel: geometry_msgs/Twist
 
 ### Publish topics
-No at the moment
+imu: sensor_msgs/Imu
+odom: nav_msgs/Odometry
+
 
 ### Actions
-Control motor 1 and 2 acoording to command from cmd_vel.
+- Control motor 1 and 2 acoording to command from cmd_vel.
+- Read from IMU and publish.
+- Calculate odometry and publish.
 
 ### Parameters
 #### motor_pulse_per_meter (int, default: 21738)
@@ -49,6 +53,7 @@ Control motor 1 and 2 acoording to command from cmd_vel.
   - 2020/11/25: bug cause by mixing type `float` with `double`.
   - fix
 - 2020/11/25: IMU timeout triggered too often. 
+- 2020/11/29: Add odometry message related code.
 
 ### Todos
 - [x] Create paramete.
