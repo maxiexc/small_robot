@@ -253,10 +253,9 @@ void IMU_InterruptCB(void)
 {
   /*Check for exit condition*/
   if(rc_get_state()==EXITING){
-    //ROS_INFO("IMU callback exit detected\n");
+    ROS_INFO("IMU callback exit detected\n");
     return;
   }
-
   /*Copy IMU data to ROS message*/
   imu_msg.orientation.x = data.dmp_quat[QUAT_X];
   imu_msg.orientation.y = data.dmp_quat[QUAT_Y];
@@ -605,9 +604,7 @@ static int BBBL_InitPeripheral(void)
 {
   /*Setup IMU*/
   rc_imu_config_t imu_config = rc_default_imu_config();
-  
   imu_config.dmp_sample_rate = SAMPLE_RATE_HZ;
-  rc_set_imu_interrupt_func(&IMU_InterruptCB);
 
   /*Initilalize imu DMP*/
   if(rc_initialize_imu_dmp(&data, imu_config)){
@@ -615,6 +612,7 @@ static int BBBL_InitPeripheral(void)
     return -1;
   }
 
+  rc_set_imu_interrupt_func(&IMU_InterruptCB);
   rc_enable_motors();
   return 0;
 }

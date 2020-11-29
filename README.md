@@ -53,11 +53,13 @@ odom: nav_msgs/Odometry
   - 2020/11/25: bug cause by mixing type `float` with `double`.
   - fix
 - 2020/11/25: IMU timeout triggered too often. 
+  - 2020/11/29: IMU timeout cause by invoking `rc_set_imu_interrupt_func()` before `rc_initialize_imu_dmp()`. Invoke `rc_set_imu_interrupt_func()` after `rc_initialize_imu_dmp()` than the callback works fine.
+  - fix
 - 2020/11/29: Add odometry message related code.
 
 ### Todos
 - [x] Create paramete.
 - [x] Look into timeout detection function.
-- [ ] Let IMU online.
+- [x] Let IMU online.
 - [ ] Create launch file.
 - [ ] Create config file.
