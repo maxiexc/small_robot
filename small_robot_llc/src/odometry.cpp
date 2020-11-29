@@ -1,9 +1,9 @@
 #include "odometry.h"
 #include <cmath>
 
-namespace small_robot_llc
-{
-  Odometry::Odometry(const double track_width = 0.0, const double enc_count_per_meter = 0.0)
+//namespace small_robot_llc
+//{
+  Odometry::Odometry(const double track_width, const double enc_count_per_meter)
   {
     track_width_ = track_width;
     enc_count_per_meter_ = enc_count_per_meter;
@@ -11,12 +11,12 @@ namespace small_robot_llc
     enc_r_last_ = 0.0;
   }
 
-  void Odometry::Init(const ROS::Time &time)
+  void Odometry::Init(const ros::Time &time)
   {
     time_last_ = time_now_ = time;
   }
 
-  bool Odometry::Update(const double enc_l, const double enc_r, const ros::time &time_now)
+  bool Odometry::Update(const double enc_l, const double enc_r, const ros::Time &time_now)
   {
     double mov_l;
     double mov_r;
@@ -92,6 +92,6 @@ namespace small_robot_llc
 
   double Odometry::GetHeading()
   {
-    return pose_now_.z;
+    return pose_now_.heading;
   }
-}
+//}

@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   sensor_msgs
+  nav_msgs
+  tf
 #  message_generation
 )
 
@@ -124,9 +126,11 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/bbbl_sensor.cpp
-# )
+add_library(${PROJECT_NAME}
+  src/joy_control_llc_node.cpp
+  src/odometry.cpp
+)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -137,9 +141,8 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/bbbl_sensor_node.cpp)
-add_executable(joy_control_llc_node src/joy_control_llc_node.cpp src/motor_controller.c src/pd_controller.c include/motor_config.h)
-#add_executable(motor_controller src/motor_controller.c src/pd_controller.c)
-#add_executable(pd_controller src/pd_controller.c)
+add_executable(joy_control_llc_node src/joy_control_llc_node.cpp src/motor_controller.c src/pd_controller.c include/motor_config.h src/odometry.cpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -157,8 +160,7 @@ add_dependencies(joy_control_llc_node joy_control_llc_node_cpp)
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(joy_control_llc_node roboticscape ${catkin_LIBRARIES})
-#target_link_libraries(motor_controller ${catkin_LIBRARIES})
-#target_link_libraries(pd_controller ${catkin_LIBRARIES})
+
 
 #############
 ## Install ##

@@ -408,7 +408,7 @@ void* tPublishStatus(void* arg)
   uint32_t priv_counter = 0U;
   
   Odometry odometry(TRACK_WIDTH_M, MOTOR_PULSE_PER_METER);
-  odometry.init(time_now);
+  odometry.Init(time_now);
 
 
   new_rc_state = rc_get_state();
