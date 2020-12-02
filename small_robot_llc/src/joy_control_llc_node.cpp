@@ -94,9 +94,6 @@ MOTC_HANDLE_T motc2;                  /**< Motor controller handle of motor 2*/
 ros::Publisher imu_pub;
 ros::Publisher odom_pub;
 
-/*Declare tf broadcaster*/
-tf::TransformBroadcaster odom_broadcaster;
-
 /*Function declaration*/
 /*Static function*/
 static int BBBL_InitPeripheral(void);
@@ -403,6 +400,8 @@ void StopBothMotor(void)
  */
 void* tPublishStatus(void* arg)
 {
+  /*Declare tf broadcaster*/
+  tf::TransformBroadcaster odom_broadcaster;
   rc_state_t last_rc_state, new_rc_state; //keep track of last state
   sensor_msgs::Imu local_imu_msg;         //imu message
   geometry_msgs::TransformStamped odom_trans; //Trasform of odom
@@ -449,7 +448,7 @@ void* tPublishStatus(void* arg)
 
     //Set and publish tf message
     geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(odometry.GetHeading());
-    odom_trans.header.stamp = current_time;
+    odom_trans.header.stamp = time_now;
     odom_trans.header.frame_id = "odom";
     odom_trans.child_frame_id = "base_link";
 

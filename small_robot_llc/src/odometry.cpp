@@ -50,8 +50,8 @@
     
     // Add movement onto current pose
     pose_last_ = pose_now_;
-    pose_now_.x += mov_linear * cos(mov_angular);
-    pose_now_.y += mov_linear * sin(mov_angular);
+    pose_now_.x += mov_linear * cos(pose_now_.heading);
+    pose_now_.y += mov_linear * sin(pose_now_.heading);
     pose_now_.heading += mov_angular;
 
     // Calculate Speed
@@ -62,6 +62,8 @@
 
     linear_ = (mov_linear/dt);
     angular_ = (mov_angular/dt);
+    linear_x_ = (linear_ * (-1.0) * sin(pose_now_.heading));
+    linear_y_ = (linear_ * (-1.0) * cos(pose_now_.heading));
     return false;    
   }
 
@@ -95,16 +97,16 @@
     return pose_now_.heading;
   }
 
-  double GetVx()
+  double Odometry::GetVx()
   {
-    return(linear * (-1.0) * sin(pose_now_.heading));
+    return linear_x_;
 
   }
-  double GetVy()
+  double Odometry::GetVy()
   {
-    return(linear * (-1.0) * cos(pose_now_.heading));
+    return linear_y_;
   }
-  double GetVrz()
+  double Odometry::GetVrz()
   {
     return angular_;
   }
