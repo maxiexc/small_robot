@@ -50,9 +50,7 @@
     
     // Add movement onto current pose
     pose_last_ = pose_now_;
-    pose_now_.x += mov_linear * cos(pose_now_.heading);
-    pose_now_.y += mov_linear * sin(pose_now_.heading);
-    pose_now_.heading += mov_angular;
+    IntegrateExact();
 
     // Calculate Speed
     if(dt < 0.0001)
@@ -110,4 +108,29 @@
   {
     return angular_;
   }
+
+  void Odometry::IntegrateRungeKutta2()
+  {
+    pose_now_.x += mov_linear * cos(pose_now_.heading + (0.5 * mov_angular));
+    pose_now_.y += mov_linear * sin(pose_now_.heading + (0.5 * mov_angular));
+    pose_now_.heading += mov_angular;
+  }
+
+  void Odometry::IntegrateExact()
+  {
+    if(fabs(mov_angular) < (1e-6))
+    {
+      IntegrateRungeKutta2();
+    }
+    else
+    {
+      const double priv_r = mov_linear/mov_angular;
+      const double priv_heading_now = pose_now_.heading + mov_angular;
+      pose_now_.x += priv_r * (sinc(priv_heading_now) - sin(pose_now_.heading));
+      pose_now_.y += priv_r * (sinc(priv_heading_now) - sin(pose_now_.heading));
+      pose_now_.heading = priv_heading_now;
+    }
+  }
+
+
 //}

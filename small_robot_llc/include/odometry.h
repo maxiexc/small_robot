@@ -64,6 +64,11 @@ typedef struct
     //Time
     ros::Time time_now_;
     ros::Time time_last_;
+
+    //Methods
+    void IntegrateRungeKutta2();
+    void IntegrateExact();
+
   };
 //}
 #endif
