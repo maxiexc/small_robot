@@ -90,9 +90,12 @@ LLC_VAR_HANDLE_T imu_var = {0};
 std::string frame_id = "imu_base";    /**< Frame ID of IMU*/
 MOTC_HANDLE_T motc1;                  /**< Motor controller handle of motor 1*/
 MOTC_HANDLE_T motc2;                  /**< Motor controller handle of motor 2*/
-/*Declear publisher*/
+/*Declare publisher*/
 ros::Publisher imu_pub;
 ros::Publisher odom_pub;
+
+/*Declare tf broadcaster*/
+tf::TransformBroadcaster odom_broadcaster;
 
 /*Function declaration*/
 /*Static function*/
@@ -402,6 +405,7 @@ void* tPublishStatus(void* arg)
 {
   rc_state_t last_rc_state, new_rc_state; //keep track of last state
   sensor_msgs::Imu local_imu_msg;         //imu message
+  geometry_msgs::TransformStamped odom_trans; //Trasform of odom
   nav_msgs::Odometry odom;                //Odometry message
   ros::Time time_now = ros::Time::now(); 
   uint32_t priv_counter = 0U;
@@ -444,11 +448,21 @@ void* tPublishStatus(void* arg)
     }
 
     //Set and publish tf message
+    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(odometry.GetHeading());
+    odom_trans.header.stamp = current_time;
+    odom_trans.header.frame_id = "odom";
+    odom_trans.child_frame_id = "base_link";
 
+    odom_trans.transform.translation.x = odometry.GetX();;
+    odom_trans.transform.translation.y = odometry.GetY();;
+    odom_trans.transform.translation.z = 0.0;
+    odom_trans.transform.rotation = odom_quat;
+
+    //send the transform
+    odom_broadcaster.sendTransform(odom_trans);
 
     //Set and publish odom message
     odometry.Update((double)(rc_get_encoder_pos(motc2.cfg.encoder_id)), (double)rc_get_encoder_pos(motc1.cfg.encoder_id) * (-1.0), time_now);
-    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(odometry.GetHeading());
     odom.header.stamp = time_now;
     odom.header.frame_id = "odom";
     odom.pose.pose.position.x = odometry.GetX();
