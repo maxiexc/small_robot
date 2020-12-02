@@ -40,6 +40,10 @@ typedef struct
     double GetY();
     double GetHeading();
 
+    double GetVx();
+    double GetVy();
+    double GetVrz();
+
   private:
     //Parameters
     double track_width_;
@@ -53,6 +57,8 @@ typedef struct
     double enc_r_last_;
     //Velocity
     double linear_;
+    double linear_x_;
+    double linear_y_;
     double angular_;
 
     //Time

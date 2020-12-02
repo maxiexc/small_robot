@@ -472,9 +472,9 @@ void* tPublishStatus(void* arg)
 
     //set the velocity
     odom.child_frame_id = "base_link";
-    //odom.twist.twist.linear.x = vx;
-    //odom.twist.twist.linear.y = vy;
-    //odom.twist.twist.angular.z = vth;
+    odom.twist.twist.linear.x = odometry.GetVx();
+    odom.twist.twist.linear.y = odometry.GetVy();
+    odom.twist.twist.angular.z = odometry.GetVrz();
     odom_pub.publish(odom);
 
     //Sleep

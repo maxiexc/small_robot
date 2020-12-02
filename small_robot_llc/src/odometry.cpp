@@ -94,4 +94,18 @@
   {
     return pose_now_.heading;
   }
+
+  double GetVx()
+  {
+    return(linear * (-1.0) * sin(pose_now_.heading));
+
+  }
+  double GetVy()
+  {
+    return(linear * (-1.0) * cos(pose_now_.heading));
+  }
+  double GetVrz()
+  {
+    return angular_;
+  }
 //}
