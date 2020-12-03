@@ -50,7 +50,7 @@
     
     // Add movement onto current pose
     pose_last_ = pose_now_;
-    IntegrateExact();
+    IntegrateExact(mov_linear, mov_angular);
 
     // Calculate Speed
     if(dt < 0.0001)
@@ -109,25 +109,25 @@
     return angular_;
   }
 
-  void Odometry::IntegrateRungeKutta2()
+  void Odometry::IntegrateRungeKutta2(double mov_linear, double mov_angular)
   {
     pose_now_.x += mov_linear * cos(pose_now_.heading + (0.5 * mov_angular));
     pose_now_.y += mov_linear * sin(pose_now_.heading + (0.5 * mov_angular));
     pose_now_.heading += mov_angular;
   }
 
-  void Odometry::IntegrateExact()
+  void Odometry::IntegrateExact(double mov_linear, double mov_angular)
   {
     if(fabs(mov_angular) < (1e-6))
     {
-      IntegrateRungeKutta2();
+      IntegrateRungeKutta2(mov_linear, mov_angular);
     }
     else
     {
       const double priv_r = mov_linear/mov_angular;
       const double priv_heading_now = pose_now_.heading + mov_angular;
-      pose_now_.x += priv_r * (sinc(priv_heading_now) - sin(pose_now_.heading));
-      pose_now_.y += priv_r * (sinc(priv_heading_now) - sin(pose_now_.heading));
+      pose_now_.x += priv_r * (sin(priv_heading_now) - sin(pose_now_.heading));
+      pose_now_.y -= priv_r * (cos(priv_heading_now) - cos(pose_now_.heading));
       pose_now_.heading = priv_heading_now;
     }
   }

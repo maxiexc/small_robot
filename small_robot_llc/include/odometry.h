@@ -66,8 +66,8 @@ typedef struct
     ros::Time time_last_;
 
     //Methods
-    void IntegrateRungeKutta2();
-    void IntegrateExact();
+    void IntegrateRungeKutta2(double mov_linear, double mov_angular);
+    void IntegrateExact(double mov_linear, double mov_angular);
 
   };
 //}

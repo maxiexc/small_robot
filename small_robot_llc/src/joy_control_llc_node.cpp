@@ -194,13 +194,12 @@ int main(int argc, char *argv[])
     /*Process*/
     if(CheckMsgTMO(llc.tstamp_twist_cmd, JCLLC_CMD_TMO_THOLD))
     {
-      /*Send timeout message and stop motor*/
+      /*Stop motor*/
       if(priv_motor_ena)
       {
         /*Switch motor_ena to 0*/
-        ROS_WARN("Twist command timeout");
+        priv_motor_ena = false;
       }
-      priv_motor_ena = false;
       llc.speed1_cmd_pps = 0;
       llc.speed2_cmd_pps = 0;
     }
@@ -518,7 +517,7 @@ void* tMotorController(void *arg)
     {
       if(!priv_motor_ena_last)
       {
-        ROS_INFO("Start motor command detected");
+        //ROS_INFO("Start motor command detected");
       }
       time_thd_now = (uint32_t)(rc_nanos_since_boot()/1000000ULL) - time_thd_start;
       //printf("MOT1 cmd:%d\n", motc1.cmd.speed);
@@ -561,7 +560,7 @@ void* tMotorController(void *arg)
     {
       if(priv_motor_ena_last)
       {
-        ROS_INFO("Stop motor command detected");
+        //ROS_INFO("Stop motor command detected");
       }
       /*Stop both motor*/
       priv_motor_stop_count += 1U;
