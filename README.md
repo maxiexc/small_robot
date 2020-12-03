@@ -55,8 +55,10 @@ odom: nav_msgs/Odometry
 - 2020/11/25: IMU timeout triggered too often. 
   - 2020/11/29: IMU timeout cause by invoking `rc_set_imu_interrupt_func()` before `rc_initialize_imu_dmp()`. Invoke `rc_set_imu_interrupt_func()` after `rc_initialize_imu_dmp()` than the callback works fine.
   - fix
-- 2020/11/29: Add odometry message related code.
-- 2020/12/02: Odometry will drift in short amount of distance. (less than 4m)
+- 2020/11/29: Add odometry message related code. (No need to track)
+- 2020/12/02: Odometry will drift in short amount of distance. (At travel distance less than 4m)
+  -2020/12/02: Update odometry algorithm to "exact integration" plus "2nd order Runge-Kutta"
+  - fix
 
 ### Todos
 - [x] Create paramete.
