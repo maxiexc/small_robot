@@ -59,6 +59,7 @@ odom: nav_msgs/Odometry
 - 2020/12/02: Odometry will drift in short amount of distance. (At travel distance less than 4m)
   -2020/12/02: Update odometry algorithm to "exact integration" plus "2nd order Runge-Kutta"
   - fix
+-2020/12/05: Change name of `joy_control_llc_node.cpp` to `sr_llc_node.cpp`.
 
 ### Todos
 - [x] Create paramete.

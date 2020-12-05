@@ -1,12 +1,10 @@
 /**
- * @defgroup   JOY_CONTROL_LLC_NODE joy control llc node
+ * @defgroup   SR_LLC_NODE sr llc node
  *
- * @brief      This file implements joy control llc node.
+ * @brief      This file implements a low level control node of small robot.
  *
  * @author     Maxie
- * @date       2020.11.25
- * 
- * @todo       Add parameter.
+ * @date       2020
  */
 
 /*Standard include*/
