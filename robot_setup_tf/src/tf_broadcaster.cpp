@@ -28,9 +28,10 @@ int main(int argc, char** argv){
   tf::TransformBroadcaster broadcaster;
 
   while(n.ok()){
+    /*x = -30mm y = 0mm z = +72.8mm*/
     broadcaster.sendTransform(
       tf::StampedTransform(
-        tf::Transform(tf::Quaternion(0, 0, 0, 1), tf::Vector3(-0.03, 0.0, 0.065)),
+        tf::Transform(tf::Quaternion(0, 0, 0, 1), tf::Vector3(-0.03, 0.0, 0.0728)),
         ros::Time::now(),"base_link", "base_laser"));
     r.sleep();
   }
