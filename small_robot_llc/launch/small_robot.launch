@@ -1,7 +1,7 @@
 <!--This will launch all HW and tf on small robot-->
 <launch>
   <!--Open ydlidar_node form dedicated launch file-->
-  <include file="$(find small_robot_llc/launch/X2L.launch)" />
+  <include file="$(find small_robot_llc)/launch/X2L.launch" />
 
   <node name="sr_llc_node" pkg="small_robot_llc" type="sr_llc_node">
   </node>
