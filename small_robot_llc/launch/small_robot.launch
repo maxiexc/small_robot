@@ -1,0 +1,15 @@
+<!--This will launch all HW and tf on small robot-->
+<launch>
+  <!--Open ydlidar_node form dedicated launch file-->
+  <include file="$(find small_robot_llc/launch/X2L.launch)" />
+
+  <node name="sr_llc_node" pkg="small_robot_llc" type="sr_llc_node">
+  </node>
+  
+  <!--static_transform_publisher-->
+  <!--static_transform_publisher x y z yaw pitch roll frame_id child_frame_id period_in_ms-->
+  <!--x = -30mm y = 0mm z = +72.8mm-->
+  <node pkg="tf" type="static_transform_publisher" name="lidar_broadcaster"
+    args="-0.03, 0.0, 0.0728 0.0 0.0 0.0 /base_link /laser_frame 50" />
+
+</launch>
