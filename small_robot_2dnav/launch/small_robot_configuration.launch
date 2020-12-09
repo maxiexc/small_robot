@@ -1,8 +1,8 @@
 <launch>
   <!--Open small_robot_llc_node from dedicated launch file-->
   <!--Open ydlidar_node form dedicated launch file-->
-  <include file="$(find small_robot_llc)/launch/small_robot_llc.launch" />
+  <include file="$(find small_robot_llc)/launch/small_robot.launch" />
     
-  <node pkg="robot_setup_tf" type="tf_broadcaster" name="tf_broadcaster" output="screen" />
+  <!--node pkg="robot_setup_tf" type="tf_broadcaster" name="tf_broadcaster" output="screen" /-->
 
 </launch> 
