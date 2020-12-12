@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   robot_setup_tf
   small_robot_llc
   ydlidar_ros
+  #gmapping
 )
 
 ## System dependencies are found with CMake's conventions

@@ -52,12 +52,17 @@
   <build_depend>robot_setup_tf</build_depend>
   <build_depend>small_robot_llc</build_depend>
   <build_depend>ydlidar_ros</build_depend>
+  <build_depend>gmapping</build_depend>
+
   <build_export_depend>robot_setup_tf</build_export_depend>
   <build_export_depend>small_robot_llc</build_export_depend>
   <build_export_depend>ydlidar_ros</build_export_depend>
+  <build_export_depend>gmapping</build_export_depend>
+
   <exec_depend>robot_setup_tf</exec_depend>
   <exec_depend>small_robot_llc</exec_depend>
   <exec_depend>ydlidar_ros</exec_depend>
+  <exec_depend>gmapping</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

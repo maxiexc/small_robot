@@ -6,12 +6,12 @@ raytrace_range: 3.0
 robot_radius: 0.15
 
 #Cost function parameters
-inflation_radius: 0.2
+inflation_radius: 0.20
 
 #Configuration for the sensors that the costmap will use to update a map
 observation_sources: laser_scan_sensor
 
-laser_scan_sensor: {sensor_frame: frame_name, data_type: LaserScan, topic: topic_name, marking: true, clearing: true}
+laser_scan_sensor: {sensor_frame: laser_frame, data_type: LaserScan, topic: scan, marking: true, clearing: true}
 
 ##Comment below are copy form "navigation_tutorials/navigation_stage/move_base_config/costmap_common_params.yaml"
 ##For this example we'll configure the costmap in voxel-grid mode
