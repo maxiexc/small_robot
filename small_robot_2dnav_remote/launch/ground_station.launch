@@ -1,4 +1,4 @@
 <launch>
   <!--Start rviz node-->
-  <node name="rviz" pkg="rviz" type="rviz" args="$(find small_robot_2dnav_remote)/config/2d_nav.rviz"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find small_robot_2dnav_remote)/config/2d_nav.rviz" output="screen"/>
 </launch>

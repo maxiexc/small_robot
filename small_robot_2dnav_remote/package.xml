@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>small_robot_2dnav</name>
+  <name>small_robot_2dnav_remote</name>
   <version>0.0.0</version>
   <description>The small_robot_2dnav package</description>
 
