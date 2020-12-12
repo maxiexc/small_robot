@@ -59,11 +59,12 @@ odom: nav_msgs/Odometry
 - 2020/12/02: Odometry will drift in short amount of distance. (At travel distance less than 4m)
   -2020/12/02: Update odometry algorithm to "exact integration" plus "2nd order Runge-Kutta"
   - fix
--2020/12/05: Change name of `joy_control_llc_node.cpp` to `sr_llc_node.cpp`.
+- 2020/12/05: Change name of `joy_control_llc_node.cpp` to `sr_llc_node.cpp`.
+- 2020/12/09: "Corrupted double-linked list" may occurred randomly when killing node `sr_llc_node`.
 
 ### Todos
 - [x] Create paramete.
 - [x] Look into timeout detection function.
 - [x] Let IMU online.
-- [ ] Create launch file.
+- [x] Create launch file.
 - [ ] Create config file.
