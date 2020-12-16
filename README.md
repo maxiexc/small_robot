@@ -87,7 +87,7 @@ This package is similar "to small_robot_2dnav" but modified to run on laptop rat
 - 2020/12/05: Change name of `joy_control_llc_node.cpp` to `sr_llc_node.cpp`.
 - 2020/12/09: "Corrupted double-linked list" may occurred randomly when killing node `sr_llc_node`.
 
-### Todos
+## Todos
 - [x] Create paramete.
 - [x] Look into timeout detection function.
 - [x] Let IMU online.
