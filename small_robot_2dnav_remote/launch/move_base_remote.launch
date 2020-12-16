@@ -7,9 +7,6 @@
   <!-- Run AMCL --> 
   <include file="$(find amcl)/examples/amcl_diff.launch" />
   
-  <!-- Run gmapping if map server is not used-->
-  <!--node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen"/-->  
-
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <param name="controller_frequency" value="5.0"/>
     <rosparam file="$(find small_robot_2dnav_remote)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
